@@ -4,6 +4,7 @@ from __future__ import print_function
 
 import argparse
 import os
+import sys
 import pprint
 import tempfile
 import apache_beam as beam
@@ -98,7 +99,7 @@ def ReadTestData(pcoll, filepatterns):
                 'Distractor_8': p['Distractor_8']
                 })
 
-def read_and_shuffle_data(train_filepattern,test_filepattern, working_dir):
+def read_data(train_filepattern,test_filepattern, working_dir):
 
     with beam.Pipeline() as pipeline:
         train_coder = tft.coders.ExampleProtoCoder(TRAIN_RAW_DATA_METADATA.schema)
@@ -119,64 +120,50 @@ def read_and_shuffle_data(train_filepattern,test_filepattern, working_dir):
                 os.path.join(working_dir, SHUFFLED_TEST_DATA_FILEBASE)))
 
 def transform_data(working_dir):
+
     with beam.Pipeline() as pipeline:
         with tft_beam.Context(
             temp_dir=os.path.join(working_dir, TRANSFORM_TEMP_DIR)):
-            coder = tft.coders.ExampleProtoCoder(TRAIN_RAW_DATA_METADATA.schema)
+            train_coder = tft.coders.ExampleProtoCoder(TRAIN_RAW_DATA_METADATA.schema)
+            test_coder = tft.coders.ExampleProtoCoder(TEST_RAW_DATA_METADATA.schema)
             train_data = (
                 pipeline
                 | 'ReadTrain' >> beam.io.ReadFromTFRecord(
                     os.path.join(working_dir, SHUFFLED_TRAIN_DATA_FILEBASE + '*'))
-                | 'DecodeTrain' >> beam.Map(coder.decode))
+                | 'DecodeTrain' >> beam.Map(train_coder.decode))
 
-            test_data = (
-                pipeline
-                | 'ReadTest' >> beam.io.ReadFromTFRecord(
-                    os.path.join(working_dir, SHUFFLED_TEST_DATA_FILEBASE + '*'))
-                | 'DecodeTest' >> beam.Map(coder.decode))
-
-            def preprocessing_fn(inputs):
+            def preprocessing_fn_train(inputs):
                 """Preprocess input columns into transformed columns."""
-                review = inputs[REVIEW_KEY]
-
-                review_tokens = tf.compat.v1.string_split(review, DELIMITERS)
-                review_indices = tft.compute_and_apply_vocabulary(
-                    review_tokens, top_k=VOCAB_SIZE)
+                context = inputs[CONTEXT_KEY]
+                utterance = inputs[UTTERANCE_KEY]
+                #z = context + utterance
+                #tf.print(z,output_stream=sys.stdout)
+                #context_tokens = tf.compat.v1.string_split(context, DELIMITERS)
+                transformed_context = tft.compute_and_apply_vocabulary(context, top_k=VOCAB_SIZE, frequency_threshold= 3,vocab_filename='anantvir_vocab_context')
+                transformed_utterance = tft.compute_and_apply_vocabulary(utterance, top_k=VOCAB_SIZE, frequency_threshold= 3,vocab_filename='anantvir_vocab_utterance')
                 
-                review_bow_indices, review_weight = tft.tfidf(review_indices,
-                                                                VOCAB_SIZE + 1)
                 return {
-                    REVIEW_KEY: review_bow_indices,
-                    REVIEW_WEIGHT_KEY: review_weight,
+                    CONTEXT_KEY: transformed_context,
+                    UTTERANCE_KEY: transformed_utterance,
                     LABEL_KEY: inputs[LABEL_KEY]
                 }
-                (transformed_train_data, transformed_metadata), transform_fn = (
-                    (train_data, TRAIN_RAW_DATA_METADATA)
-                    | 'AnalyzeAndTransform' >> tft_beam.AnalyzeAndTransformDataset(
-                        preprocessing_fn))
-                transformed_data_coder = tft.coders.ExampleProtoCoder(
-                    transformed_metadata.schema)
+            (transformed_train_data, transformed_metadata), transform_fn = (
+                (train_data, TRAIN_RAW_DATA_METADATA)
+                | 'AnalyzeAndTransform' >> tft_beam.AnalyzeAndTransformDataset(
+                    preprocessing_fn_train))
+            transformed_data_coder = tft.coders.ExampleProtoCoder(
+                transformed_metadata.schema)
 
-                transformed_test_data, _ = (
-                    ((test_data, TRAIN_RAW_DATA_METADATA), transform_fn)
-                    | 'Transform' >> tft_beam.TransformDataset())
+            _ = (
+                transformed_train_data
+                | 'EncodeTrainData' >> beam.Map(transformed_data_coder.encode)
+                | 'WriteTrainData' >> beam.io.WriteToTFRecord(
+                    os.path.join(working_dir, TRANSFORMED_TRAIN_DATA_FILEBASE)))
 
-                _ = (
-                    transformed_train_data
-                    | 'EncodeTrainData' >> beam.Map(transformed_data_coder.encode)
-                    | 'WriteTrainData' >> beam.io.WriteToTFRecord(
-                        os.path.join(working_dir, TRANSFORMED_TRAIN_DATA_FILEBASE)))
-
-                _ = (
-                    transformed_test_data
-                    | 'EncodeTestData' >> beam.Map(transformed_data_coder.encode)
-                    | 'WriteTestData' >> beam.io.WriteToTFRecord(
-                        os.path.join(working_dir, TRANSFORMED_TEST_DATA_FILEBASE)))
-
-                _ = (
-                    transform_fn
-                    | 'WriteTransformFn' >>
-                    tft_beam.WriteTransformFn(working_dir))
+            _ = (
+                transform_fn
+                | 'WriteTransformFn' >>
+                tft_beam.WriteTransformFn(working_dir))
 
 def _make_training_input_fn(tf_transform_output, transformed_examples,
                             batch_size):
@@ -267,7 +254,7 @@ def main():
     train_filepattern = os.path.join(input_data_dir, 'train.csv')
     test_filepattern = os.path.join(input_data_dir, 'test.csv')
 
-    read_and_shuffle_data(train_filepattern,test_filepattern,working_dir)
+    read_data(train_filepattern,test_filepattern,working_dir)
     transform_data(working_dir)
     results = train_and_evaluate(working_dir)
 
