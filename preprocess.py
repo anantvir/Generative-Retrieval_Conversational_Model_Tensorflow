@@ -1,3 +1,15 @@
+"""
+The idea for this code has been borrowed from official Tensorflow Github sentiment analysis repository
+https://github.com/tensorflow/transform/blob/599691c8b94bbd6ee7f67c11542e7fef1792a566/examples/sentiment_example.py#L80
+
+It has then been modified according to our requirements.
+
+Contributors:
+@Anantvir_Singh 
+@Hang Chen
+"""
+
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
