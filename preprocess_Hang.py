@@ -9,7 +9,7 @@ Contributors:
 @Hang Chen
 """
 
- https://www.tensorflow.org/tfx/transform/get_started#
+# https://www.tensorflow.org/tfx/transform/get_started#
 import os
 import tempfile
 
@@ -151,12 +151,20 @@ def transform_data(working_dir):
                 """Preprocess input columns into transformed columns."""
                 context = inputs['Context']
                 utterance = inputs['Utterance']
+                vocab = tf.concat([context, utterance], 0) 
                 #z = context + utterance
                 #tf.print(z,output_stream=sys.stdout)
                 context_tokens = tf.compat.v1.string_split(context, DELIMITERS)
                 utterance_tokens = tf.compat.v1.string_split(utterance, DELIMITERS)
-                transformed_context = tft.compute_and_apply_vocabulary(context_tokens, vocab_filename='anantvir_vocab_context')
-                transformed_utterance = tft.compute_and_apply_vocabulary(utterance_tokens, vocab_filename='anantvir_vocab_utterance')
+                transformed_context = tft.compute_and_apply_vocabulary(context_tokens)
+                transformed_utterance = tft.compute_and_apply_vocabulary(utterance_tokens)
+
+                # Combine tokens will give errors; combining the inputs works
+                # concat_vocab_tokens = tf.concat([context_tokens, utterance_tokens], 0) 
+                # transformed_vocab = tft.compute_and_apply_vocabulary(concat_vocab_tokens, vocab_filename='anantvir_vocab')
+
+                vocab_tokens = tf.compat.v1.string_split(vocab, DELIMITERS)
+                transformed_vocab = tft.compute_and_apply_vocabulary(vocab_tokens, vocab_filename='anantvir_vocab')
                 
                 return {
                     'Context': transformed_context,

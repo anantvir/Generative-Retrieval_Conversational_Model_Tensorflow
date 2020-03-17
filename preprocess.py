@@ -1,6 +1,6 @@
 """
 The idea for this code has been borrowed from official Tensorflow Github sentiment analysis repository
-https://github.com/tensorflow/transform/blob/599691c8b94bbd6ee7f67c11542e7fef1792a566/examples/sentiment_example.py#L80
+https://github.com/tensorflow/transform/blob/599691c8b94bbd6ee7f67c11542e7fef1792a566/examples/sentiment_example.py
 
 It has then been modified according to our requirements.
 
@@ -260,7 +260,7 @@ def train_and_evaluate(working_dir,
 
 
 def main():
-    input_data_dir = 'D:\\Courses\\Chatbot\\dataset_trimmed\\data'
+    input_data_dir = 'dataset_trimmed/data'
     working_dir = tempfile.mkdtemp(dir=input_data_dir)
 
     train_filepattern = os.path.join(input_data_dir, 'train.csv')
