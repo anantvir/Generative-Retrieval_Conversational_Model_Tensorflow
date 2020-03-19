@@ -151,26 +151,30 @@ def transform_data(working_dir):
                 """Preprocess input columns into transformed columns."""
                 context = inputs['Context']
                 utterance = inputs['Utterance']
-                vocab = tf.concat([context, utterance], 0) 
-                #z = context + utterance
-                #tf.print(z,output_stream=sys.stdout)
+                vocab = tf.concat([context, utterance], 0)
+
                 context_tokens = tf.compat.v1.string_split(context, DELIMITERS)
                 utterance_tokens = tf.compat.v1.string_split(utterance, DELIMITERS)
-                transformed_context = tft.compute_and_apply_vocabulary(context_tokens)
-                transformed_utterance = tft.compute_and_apply_vocabulary(utterance_tokens)
-
-                # Combine tokens will give errors; combining the inputs works
-                # concat_vocab_tokens = tf.concat([context_tokens, utterance_tokens], 0) 
-                # transformed_vocab = tft.compute_and_apply_vocabulary(concat_vocab_tokens, vocab_filename='anantvir_vocab')
 
                 vocab_tokens = tf.compat.v1.string_split(vocab, DELIMITERS)
-                transformed_vocab = tft.compute_and_apply_vocabulary(vocab_tokens, vocab_filename='anantvir_vocab')
+                # Return a Tensor or SparseTensor where each string value is mapped to an integer.
+                # transformed_vocab = tft.compute_and_apply_vocabulary(vocab_tokens, vocab_filename='anantvir_vocab')
+                vocab_mapping_file_path = tft.vocabulary(vocab_tokens, vocab_filename='anantvir_vocab')
+
+                mapped_context = tft.apply_vocabulary(context_tokens, deferred_vocab_filename_tensor=vocab_mapping_file_path)
+                mapped_utterance = tft.apply_vocabulary(utterance_tokens, deferred_vocab_filename_tensor=vocab_mapping_file_path)
                 
                 return {
-                    'Context': transformed_context,
-                    'Utterance': transformed_utterance,
-                    'Label': inputs['Label']
+                    'Context': mapped_context,
+                    'Utterance': mapped_utterance,
+                    # 'vocab_mapping': transformed_vocab
                 }
+
+            # train_transform_fn = (
+            #     # data, metadata = dataset
+            #     (train_data, TRAIN_RAW_DATA_METADATA)
+            #     | 'Analyze' >> tft_beam.AnalyzeDataset(
+            #         preprocessing_fn_train))
             
             (transformed_train_data, transformed_train_metadata), train_transform_fn = (
                 (train_data, TRAIN_RAW_DATA_METADATA)
@@ -179,16 +183,24 @@ def transform_data(working_dir):
             transformed_train_data_coder = tft.coders.ExampleProtoCoder(
                 transformed_train_metadata.schema)
 
+            # https://stackoverflow.com/questions/46406419/collecting-output-from-apache-beam-pipeline-and-displaying-it-to-console
+            def print_row(row):
+                print(row)
+            
+            _ = (
+                transformed_train_data
+                | 'print' >> beam.Map(print_row))
+
             _ = (
                 transformed_train_data
                 | 'EncodeTrainData' >> beam.Map(transformed_train_data_coder.encode)
                 | 'WriteTrainData' >> beam.io.WriteToTFRecord(
                     os.path.join(working_dir, TRANSFORMED_TRAIN_DATA_FILEBASE)))
 
-            _ = (
-                train_transform_fn
-                | 'WriteTrainTransformFn' >>
-                tft_beam.WriteTransformFn(working_dir))
+            # _ = (
+            #     train_transform_fn
+            #     | 'WriteTrainTransformFn' >>
+            #     tft_beam.WriteTransformFn(working_dir))
 
 def main():
     input_data_dir = 'data'
