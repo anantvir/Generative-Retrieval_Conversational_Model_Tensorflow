@@ -155,11 +155,9 @@ def transform_data(working_dir):
 
                 context_tokens = tf.compat.v1.string_split(context, DELIMITERS)
                 utterance_tokens = tf.compat.v1.string_split(utterance, DELIMITERS)
-
                 vocab_tokens = tf.compat.v1.string_split(vocab, DELIMITERS)
-                # Return a Tensor or SparseTensor where each string value is mapped to an integer.
-                # transformed_vocab = tft.compute_and_apply_vocabulary(vocab_tokens, vocab_filename='anantvir_vocab')
-                vocab_mapping_file_path = tft.vocabulary(vocab_tokens, vocab_filename='anantvir_vocab')
+               
+                vocab_mapping_file_path = tft.vocabulary(vocab_tokens, vocab_filename='anantvir_train_vocab')
 
                 mapped_context = tft.apply_vocabulary(context_tokens, deferred_vocab_filename_tensor=vocab_mapping_file_path)
                 mapped_utterance = tft.apply_vocabulary(utterance_tokens, deferred_vocab_filename_tensor=vocab_mapping_file_path)
@@ -167,7 +165,63 @@ def transform_data(working_dir):
                 return {
                     'Context': mapped_context,
                     'Utterance': mapped_utterance,
-                    # 'vocab_mapping': transformed_vocab
+                }
+
+            def preprocessing_fn_test(inputs):
+                """Preprocess input columns into transformed columns."""
+                context = inputs['Context']
+                ground_truth_utterance = inputs['Ground Truth Utterance']
+                distractor_0 = inputs['Distractor_0']
+                distractor_1 = inputs['Distractor_1']
+                distractor_2 = inputs['Distractor_2']
+                distractor_3 = inputs['Distractor_3']
+                distractor_4 = inputs['Distractor_4']
+                distractor_5 = inputs['Distractor_5']
+                distractor_6 = inputs['Distractor_6']
+                distractor_7 = inputs['Distractor_7']
+                distractor_8 = inputs['Distractor_8']
+                vocab = tf.concat([context, ground_truth_utterance, distractor_0, distractor_1, distractor_2, distractor_3, distractor_4, distractor_5, distractor_6, distractor_7, distractor_8], 0)
+
+                context_tokens = tf.compat.v1.string_split(context, DELIMITERS)
+                ground_truth_utterance_tokens = tf.compat.v1.string_split(ground_truth_utterance, DELIMITERS)
+                distractor_0_tokens = tf.compat.v1.string_split(distractor_0, DELIMITERS)
+                distractor_1_tokens = tf.compat.v1.string_split(distractor_1, DELIMITERS)
+                distractor_2_tokens = tf.compat.v1.string_split(distractor_2, DELIMITERS)
+                distractor_3_tokens = tf.compat.v1.string_split(distractor_3, DELIMITERS)
+                distractor_4_tokens = tf.compat.v1.string_split(distractor_4, DELIMITERS)
+                distractor_5_tokens = tf.compat.v1.string_split(distractor_5, DELIMITERS)
+                distractor_6_tokens = tf.compat.v1.string_split(distractor_6, DELIMITERS)
+                distractor_7_tokens = tf.compat.v1.string_split(distractor_7, DELIMITERS)
+                distractor_8_tokens = tf.compat.v1.string_split(distractor_8, DELIMITERS)
+
+                vocab_tokens = tf.compat.v1.string_split(vocab, DELIMITERS)
+               
+                vocab_mapping_file_path = tft.vocabulary(vocab_tokens, vocab_filename='anantvir_test_vocab')
+
+                mapped_context = tft.apply_vocabulary(context_tokens, deferred_vocab_filename_tensor=vocab_mapping_file_path)
+                mapped_ground_truth_utterance = tft.apply_vocabulary(ground_truth_utterance_tokens, deferred_vocab_filename_tensor=vocab_mapping_file_path)
+                mapped_distractor_0 = tft.apply_vocabulary(distractor_0_tokens, deferred_vocab_filename_tensor=vocab_mapping_file_path)
+                mapped_distractor_1 = tft.apply_vocabulary(distractor_0_tokens, deferred_vocab_filename_tensor=vocab_mapping_file_path)
+                mapped_distractor_2 = tft.apply_vocabulary(distractor_0_tokens, deferred_vocab_filename_tensor=vocab_mapping_file_path)
+                mapped_distractor_3 = tft.apply_vocabulary(distractor_0_tokens, deferred_vocab_filename_tensor=vocab_mapping_file_path)
+                mapped_distractor_4 = tft.apply_vocabulary(distractor_0_tokens, deferred_vocab_filename_tensor=vocab_mapping_file_path)
+                mapped_distractor_5 = tft.apply_vocabulary(distractor_0_tokens, deferred_vocab_filename_tensor=vocab_mapping_file_path)
+                mapped_distractor_6 = tft.apply_vocabulary(distractor_0_tokens, deferred_vocab_filename_tensor=vocab_mapping_file_path)
+                mapped_distractor_7 = tft.apply_vocabulary(distractor_0_tokens, deferred_vocab_filename_tensor=vocab_mapping_file_path)
+                mapped_distractor_8 = tft.apply_vocabulary(distractor_0_tokens, deferred_vocab_filename_tensor=vocab_mapping_file_path)
+
+                return {
+                    'Context': mapped_context,
+                    'Ground Truth Utterance': mapped_ground_truth_utterance,
+                    'Distractor_0': mapped_distractor_0,
+                    'Distractor_1': mapped_distractor_1,
+                    'Distractor_2': mapped_distractor_2,
+                    'Distractor_3': mapped_distractor_3,
+                    'Distractor_4': mapped_distractor_4,
+                    'Distractor_5': mapped_distractor_5,
+                    'Distractor_6': mapped_distractor_6,
+                    'Distractor_7': mapped_distractor_7,
+                    'Distractor_8': mapped_distractor_8,
                 }
 
             # train_transform_fn = (
@@ -178,18 +232,25 @@ def transform_data(working_dir):
             
             (transformed_train_data, transformed_train_metadata), train_transform_fn = (
                 (train_data, TRAIN_RAW_DATA_METADATA)
-                | 'AnalyzeAndTransform' >> tft_beam.AnalyzeAndTransformDataset(
+                | 'AnalyzeAndTransformTrain' >> tft_beam.AnalyzeAndTransformDataset(
                     preprocessing_fn_train))
             transformed_train_data_coder = tft.coders.ExampleProtoCoder(
                 transformed_train_metadata.schema)
 
+            (transformed_test_data, transformed_test_metadata), test_transform_fn = (
+                (test_data, TEST_RAW_DATA_METADATA)
+                | 'AnalyzeAndTransformTest' >> tft_beam.AnalyzeAndTransformDataset(
+                    preprocessing_fn_test))
+            transformed_test_data_coder = tft.coders.ExampleProtoCoder(
+                transformed_test_metadata.schema)
+
             # https://stackoverflow.com/questions/46406419/collecting-output-from-apache-beam-pipeline-and-displaying-it-to-console
-            def print_row(row):
-                print(row)
+            # def print_row(row):
+            #     print(row)
             
-            _ = (
-                transformed_train_data
-                | 'print' >> beam.Map(print_row))
+            # _ = (
+            #     transformed_train_data
+            #     | 'print' >> beam.Map(print_row))
 
             _ = (
                 transformed_train_data
@@ -202,8 +263,14 @@ def transform_data(working_dir):
             #     | 'WriteTrainTransformFn' >>
             #     tft_beam.WriteTransformFn(working_dir))
 
+            _ = (
+                transformed_test_data
+                | 'EncodeTestData' >> beam.Map(transformed_test_data_coder.encode)
+                | 'WriteTestData' >> beam.io.WriteToTFRecord(
+                    os.path.join(working_dir, TRANSFORMED_TEST_DATA_FILEBASE)))
+
 def main():
-    input_data_dir = 'data'
+    input_data_dir = 'dataset_trimmed/data'
     working_dir = tempfile.mkdtemp(dir=input_data_dir)
 
     train_file_path = os.path.join(input_data_dir, 'train.csv')
