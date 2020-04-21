@@ -1,3 +1,10 @@
+"""
+Reference:
+1) https://towardsdatascience.com/multi-class-text-classification-with-lstm-using-tensorflow-2-0-d88627c10a35
+2) https://towardsdatascience.com/working-with-tfrecords-and-tf-train-example-36d111b3ff4d
+3) https://www.tensorflow.org/tutorials/load_data/tfrecord
+"""
+
 import tensorflow as tf
 import pickle
 import os
@@ -25,7 +32,7 @@ def read_train_data(data_path):
     context_train = []
     utterance_train = []
     labels = []
-    with open(os.path.join(data_path,'train.csv'),encoding='utf8') as csv_file:
+    with open(os.path.join(data_path,'train_100.csv'),encoding='utf8') as csv_file:
         reader = csv.reader(csv_file)
         next(reader)
         for row in reader:
@@ -54,13 +61,17 @@ def read_test_data(data_path):
     return context_test,ground_truth,distractor_0,distractor_1,distractor_2,distractor_3,distractor_4,distractor_5,distractor_6,distractor_7,distractor_8
 
 def extract_and_store_vocabulary(vocab_size,oov_token,context_column,utterance_column):
+    print("Extracting Vocabulary ...")
+
     tokenizer = Tokenizer(num_words = vocab_size,oov_token = oov_token)
     tokenizer.fit_on_texts(context_column + utterance_column)
 
+    print("Vocabulary generated successfully ... !")
     # Dictionary in the format {word : index}
     word_index = tokenizer.word_index
     
     # Saving Vocab to JSON in the format {word : mapped integer}
+    print("Saving Vocabulary tio disk ...")
     tokernizer_json_string = tokenizer.to_json()
     with io.open(os.path.join(OUTPUT_PATH,'tokenizer.json'),'w',encoding='utf-8') as f:
         f.write(json.dumps(tokernizer_json_string,ensure_ascii=False))
@@ -72,6 +83,8 @@ def map_text_to_integers_and_pad_train(tokenizer,context,utterance):
     integer_context_sequences = tokenizer.texts_to_sequences(context)
     integer_utterance_sequences = tokenizer.texts_to_sequences(utterance)
 
+    print("Mapping sentences to integers ...")
+    
     context_sequences_padded = pad_sequences(integer_context_sequences,maxlen = MAX_LENGTH_OF_SENTENCE,padding = PADDING_TYPE, truncating = TRUNC_TYPE)
     utterance_sequences_padded = pad_sequences(integer_utterance_sequences,maxlen = MAX_LENGTH_OF_SENTENCE,padding = PADDING_TYPE, truncating = TRUNC_TYPE)
 
@@ -100,19 +113,6 @@ def create_train_Example(context,utterance,label,tokenizer):
     example_proto = tf.train.Example(features = tf.train.Features(feature = feature))
     return example_proto.SerializeToString()
 
-def write_train_tfRecords(output_path,serialized_example):
-    filename = 'train.tfrecords'
-    with tf.io.TFRecordWriter(os.path.join(output_path,filename)) as writer:
-        writer.write(serialized_example)
-
-
-context_col,utterrance_col,label_col = read_train_data(DATA_DIRECTORY_PATH)
-tokenizer = extract_and_store_vocabulary(VOCAB_SIZE,OOV_TOKEN,context_col,utterrance_col)
-context_padded,utterance_padded = map_text_to_integers_and_pad_train(tokenizer,context_col,utterrance_col)
-labels = np.array(label_col)
-
-dataset = tf.data.Dataset.from_tensor_slices((context_padded,utterance_padded,labels))
-
 def create_train_TFRecords(dataset,output_path):
     file_name = 'train.tfrecords'
     print("Creating train TFRecords ...")
@@ -122,4 +122,33 @@ def create_train_TFRecords(dataset,output_path):
             writer.write(serialized_example)
     print("Train TFRecords created successfully !")
 
-print("Hello")
+def read_train_TFRecords(serialized_example):
+    print("Reading train TFRecords ...")
+    feature_description = {
+        "Context" : tf.io.FixedLenFeature((), tf.string),
+        "Utterance" : tf.io.FixedLenFeature((), tf.string),
+        "Label" : tf.io.FixedLenFeature((), tf.int64)
+    }
+    example = tf.io.parse_single_example(serialized_example, feature_description)
+    context = tf.io.parse_tensor(example['Context'],out_type = tf.int32)
+    utterance = tf.io.parse_tensor(example['Utterance'],out_type = tf.int32)
+    label = example['Label']
+    return context,utterance,label
+
+context_col,utterrance_col,label_col = read_train_data(DATA_DIRECTORY_PATH)
+tokenizer = extract_and_store_vocabulary(VOCAB_SIZE,OOV_TOKEN,context_col,utterrance_col)
+context_padded,utterance_padded = map_text_to_integers_and_pad_train(tokenizer,context_col,utterrance_col)
+labels = np.array(label_col)
+
+dataset = tf.data.Dataset.from_tensor_slices((context_padded,utterance_padded,labels))
+
+create_train_TFRecords(dataset,OUTPUT_PATH)
+
+tfrecord_dataset = tf.data.TFRecordDataset(os.path.join(OUTPUT_PATH,"train.tfrecords"))
+parsed_dataset = tfrecord_dataset.map(read_train_TFRecords)
+
+#print(parsed_dataset)
+for data in parsed_dataset:
+    print(data)
+
+print("Finished ..... !")
