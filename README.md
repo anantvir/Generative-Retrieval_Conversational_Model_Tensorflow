@@ -2,6 +2,8 @@
 Generative and Retrieval Chatbots in Tensorflow using TFX, TF Transform, Apache Beam
 
 Retrieval --> Dual LSTM Encoder Siamese Model
+
+
 Generative --> Seq2seq Model
 
 Reference: 
