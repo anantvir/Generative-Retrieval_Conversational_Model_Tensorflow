@@ -7,6 +7,7 @@ import os
 import numpy as np
 import json
 from preprocessing import read_train_TFRecords
+from custom_layer import CustomLayer
 
 """-------------------------------------- Constants ------------------------------------------"""
 GLOVE_EMBEDDING_PATH = 'D:\\Courses\\Chatbot\\glove'
@@ -72,7 +73,10 @@ utterance_input = Input(shape=(MAX_SENTENCE_LENGTH,),dtype='float32')
 encoded_context = encoder(context_input)            # Shape = (None,256)
 encoded_utterance = encoder(utterance_input)        # Actual response encoding (None,256) --> Need to take its transpose to make dimenions add up
 
-generated_response = tf.matmul(encoded_context,M)   # Shape = (None,256)
+custom_layer = CustomLayer(256,256)
+generated_response = custom_layer(encoded_context)
+print(generated_response.shape)
+#generated_response = tf.matmul(encoded_context,M)   # Shape = (None,256)
 projection = tf.matmul(generated_response,tf.transpose(encoded_utterance))
 probability = tf.math.sigmoid(projection)
 
@@ -90,13 +94,14 @@ def create_batched_dataset(data_path):
     parsed_dataset = parsed_dataset.repeat()
     parsed_dataset = parsed_dataset.shuffle(SHUFFLE_BUFFER)
     parsed_dataset = parsed_dataset.batch(BATCH_SIZE)
-    iterator = tf.compat.v1.data.make_one_shot_iterator(parsed_dataset)
-    batched_context,batched_utterance,batched_labels = iterator.get_next()
-    return batched_context,batched_utterance,batched_labels
+    # iterator = tf.compat.v1.data.make_one_shot_iterator(parsed_dataset)
+    # batched_context,batched_utterance,batched_labels = iterator.get_next()
+    return parsed_dataset
 
-batched_context,batched_utterance,batched_labels = create_batched_dataset(OUTPUT_PATH)
-print(tf.compat.v1.trainable_variables)
-for i in range(50):
+parsed_dataset = create_batched_dataset(OUTPUT_PATH)
+#print(tf.compat.v1.get_default_graph().get_collection_ref(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES))
+for i in range(60):
+    batched_context,batched_utterance,batched_labels = next(iter(parsed_dataset))
     dual_encoder.fit([batched_context,batched_utterance],batched_labels,batch_size = BATCH_SIZE,epochs = 1)
     print(M.numpy()[0][:2])
     #print("Epoch {} completed ...!".format(i))
