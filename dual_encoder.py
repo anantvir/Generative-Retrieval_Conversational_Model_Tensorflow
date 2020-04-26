@@ -10,8 +10,9 @@ from preprocessing import read_train_TFRecords
 from custom_layer import CustomLayer
 
 """-------------------------------------- Constants ------------------------------------------"""
-GLOVE_EMBEDDING_PATH = 'D:\\Courses\\Chatbot\\glove'
-OUTPUT_PATH = 'D:\\Courses\\Chatbot\\output'
+DIRNAME_ABSOLUTE = os.path.dirname(__file__)
+GLOVE_EMBEDDING_PATH = os.path.join(DIRNAME_ABSOLUTE, 'glove')
+OUTPUT_PATH = os.path.join(DIRNAME_ABSOLUTE, 'output')
 MAX_SENTENCE_LENGTH = 160
 MAX_NB_WORDS = 100000
 EMBEDDING_DIM = 50
@@ -27,43 +28,43 @@ embeddings_index = dict()
 
 # Map words to their embeddings
 with open(os.path.join(GLOVE_EMBEDDING_PATH,"glove.6B.50d.txt"),'r',encoding='utf-8') as glove_file:
-    for row in glove_file:
-        values = row.split()
-        word = values[0]
-        try:
-            embedding = np.asarray(values[1:],dtype = 'float32')
-        except ValueError:
-            continue
-        embeddings_index[word] = embedding
+	for row in glove_file:
+		values = row.split()
+		word = values[0]
+		try:
+			embedding = np.asarray(values[1:],dtype = 'float32')
+		except ValueError:
+			continue
+		embeddings_index[word] = embedding
 
 print("Maximum Length of Sentence :{}".format(MAX_SENTENCE_LENGTH))
 print("Maximum Number of Words :{}".format(MAX_NB_WORDS))
 
 try:
-    with open(os.path.join(OUTPUT_PATH,"tokenizer.json")) as f:
-        data = json.load(f)
-        tokenizer = tokenizer_from_json(data)
+	with open(os.path.join(OUTPUT_PATH,"tokenizer.json")) as f:
+		data = json.load(f)
+		tokenizer = tokenizer_from_json(data)
 except Exception:
-    print("tokenizer.json file not found at output path ... !")
+	print("tokenizer.json file not found at output path ... !")
 
 word_index = tokenizer.word_index
 num_words = min(MAX_NB_WORDS,len(word_index)) + 1       # Why + 1 ??
 EMBEDDING_MATRIX = np.zeros((num_words,EMBEDDING_DIM))
 
 for word,index in word_index.items():
-    if index > MAX_NB_WORDS:
-        continue
-    embedding_vector = embeddings_index.get(word)       #.get() used because for key not found it returns None and not KeyError !
-    if embedding_vector is not None:
-        EMBEDDING_MATRIX[index] = embedding_vector
+	if index > MAX_NB_WORDS:
+		continue
+	embedding_vector = embeddings_index.get(word)       #.get() used because for key not found it returns None and not KeyError !
+	if embedding_vector is not None:
+		EMBEDDING_MATRIX[index] = embedding_vector
 
 print("Building Dual Encoder LSTM ...")
 
 encoder = Sequential()
 encoder.add(Embedding(input_dim = MAX_NB_WORDS,output_dim = EMBEDDING_DIM,input_length = MAX_SENTENCE_LENGTH))
 encoder.add(LSTM(units = 256))
-M_init = tf.random_normal_initializer()
-M = tf.Variable(initial_value = M_init(shape = (256,256)),trainable = True)
+#M_init = tf.random_normal_initializer()
+#M = tf.Variable(initial_value = M_init(shape = (256,256)),trainable = True)
 
 # Create tensors for Context and Utterance
 context_input = Input(shape=(MAX_SENTENCE_LENGTH,),dtype='float32')
@@ -75,7 +76,7 @@ encoded_utterance = encoder(utterance_input)        # Actual response encoding (
 
 custom_layer = CustomLayer(256,256)
 generated_response = custom_layer(encoded_context)
-print(generated_response.shape)
+# print(generated_response.shape)
 #generated_response = tf.matmul(encoded_context,M)   # Shape = (None,256)
 projection = tf.matmul(generated_response,tf.transpose(encoded_utterance))
 probability = tf.math.sigmoid(projection)
@@ -83,28 +84,50 @@ probability = tf.math.sigmoid(projection)
 dual_encoder = Model(inputs=[context_input,utterance_input],outputs = probability)
 plot_model(dual_encoder, os.path.join(OUTPUT_PATH,'my_first_model.png'),show_shapes = True)
 
-dual_encoder.compile(loss = 'binary_crossentropy', optimizer = 'rmsprop',metrics=['accuracy'])
+''' Attempting GradientTape '''
+from tensorflow.keras.losses import binary_crossentropy
+# reference - https://www.pyimagesearch.com/2020/03/23/using-tensorflow-and-gradienttape-to-train-a-keras-model/
+from tensorflow.keras.optimizers import RMSprop
+opt = RMSprop(learning_rate=0.001, rho=0.9, momentum=0.0, epsilon=1e-07, centered=False)
 
-print(M.numpy()[0][:2])
+def step(input_batch_context, input_batch_utterance, input_batch_label):
+	#print(dual_encoder.trainable_variables)
+	with tf.GradientTape() as tape:
+		pred = dual_encoder(inputs = [input_batch_context, input_batch_utterance])
+		loss = binary_crossentropy(input_batch_label, pred)
+
+	# calculate the gradients using our tape and then update the model weights
+	grads = tape.gradient(loss, dual_encoder.trainable_variables)
+	opt.apply_gradients(zip(grads, dual_encoder.trainable_variables))
+
+''' Done Attempting GradientTape '''
+
+dual_encoder.compile(loss = 'binary_crossentropy', optimizer = 'rmsprop',metrics=['accuracy'])
+#print(encoder.summary())
+#print(dual_encoder.summary())
+# print(M.numpy()[0][:2])
 
 
 def create_batched_dataset(data_path):
-    tfrecord_dataset = tf.data.TFRecordDataset(os.path.join(data_path,"train.tfrecords"))
-    parsed_dataset = tfrecord_dataset.map(read_train_TFRecords,num_parallel_calls = 8)
-    parsed_dataset = parsed_dataset.repeat()
-    parsed_dataset = parsed_dataset.shuffle(SHUFFLE_BUFFER)
-    parsed_dataset = parsed_dataset.batch(BATCH_SIZE)
-    # iterator = tf.compat.v1.data.make_one_shot_iterator(parsed_dataset)
-    # batched_context,batched_utterance,batched_labels = iterator.get_next()
-    return parsed_dataset
+	tfrecord_dataset = tf.data.TFRecordDataset(os.path.join(data_path,"train.tfrecords"))
+	parsed_dataset = tfrecord_dataset.map(read_train_TFRecords,num_parallel_calls = 8)
+	parsed_dataset = parsed_dataset.repeat()
+	parsed_dataset = parsed_dataset.shuffle(SHUFFLE_BUFFER)
+	parsed_dataset = parsed_dataset.batch(BATCH_SIZE)
+	# iterator = tf.compat.v1.data.make_one_shot_iterator(parsed_dataset)
+	# batched_context,batched_utterance,batched_labels = iterator.get_next()
+	return parsed_dataset
 
 parsed_dataset = create_batched_dataset(OUTPUT_PATH)
 #print(tf.compat.v1.get_default_graph().get_collection_ref(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES))
+print(dual_encoder.trainable_variables)
 for i in range(60):
-    batched_context,batched_utterance,batched_labels = next(iter(parsed_dataset))
-    dual_encoder.fit([batched_context,batched_utterance],batched_labels,batch_size = BATCH_SIZE,epochs = 1)
-    print(M.numpy()[0][:2])
-    #print("Epoch {} completed ...!".format(i))
+	batched_context,batched_utterance,batched_labels = next(iter(parsed_dataset))
+
+	step(batched_context, batched_utterance, batched_labels)
+	# dual_encoder.fit([batched_context,batched_utterance],batched_labels,batch_size = BATCH_SIZE,epochs = 1)
+	#print(M.numpy()[0][:2])
+	#print("Epoch {} completed ...!".format(i))
 
 
 
