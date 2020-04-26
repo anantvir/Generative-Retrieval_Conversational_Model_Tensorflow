@@ -1,7 +1,7 @@
 """
-@Authors:
-- Anantvir Singh
-- Hang Chen
+Authors:
+- @Anantvir_Singh
+- @Hang_Chen
 Reference:
 1) https://towardsdatascience.com/multi-class-text-classification-with-lstm-using-tensorflow-2-0-d88627c10a35
 2) https://towardsdatascience.com/working-with-tfrecords-and-tf-train-example-36d111b3ff4d
@@ -147,11 +147,11 @@ dataset = tf.data.Dataset.from_tensor_slices((context_padded,utterance_padded,la
 
 create_train_TFRecords(dataset,OUTPUT_PATH)
 
-tfrecord_dataset = tf.data.TFRecordDataset(os.path.join(OUTPUT_PATH,"train.tfrecords"))
-parsed_dataset = tfrecord_dataset.map(read_train_TFRecords)
+#tfrecord_dataset = tf.data.TFRecordDataset(os.path.join(OUTPUT_PATH,"train.tfrecords"))
+#parsed_dataset = tfrecord_dataset.map(read_train_TFRecords)
 
 #print(parsed_dataset)
-for data in parsed_dataset:
-    print(data)
+# for data in parsed_dataset:
+#     print(data)
 
-print("Finished ..... !")
+# print("Finished ..... !")
