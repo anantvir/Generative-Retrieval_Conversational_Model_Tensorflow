@@ -4,14 +4,15 @@ import tensorflow as tf
 
 class CustomLayer(layers.Layer):
 
-  def __init__(self, units=256, input_dim=256,trainable = True):
+  def __init__(self, units=256, input_dim=256):
     super(CustomLayer, self).__init__()
     M_init = tf.random_normal_initializer()
-    self.M = tf.Variable(initial_value=M_init(shape=(input_dim, units),dtype='float32'),trainable=True)
+    self.M = tf.Variable(initial_value=M_init(shape=(input_dim, units),dtype='float32'),trainable=True,name = "M")
 
   def call(self, inputs):
-    print(self.M)
-    return tf.matmul(inputs, self.M)
+    res = tf.matmul(inputs, self.M) 
+    #print(res)
+    return res
 
 # x = tf.ones((32, 256))
 # custom_layer = CustomLayer(256, 256)
