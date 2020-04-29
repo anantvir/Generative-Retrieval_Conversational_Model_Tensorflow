@@ -10,6 +10,8 @@ class CustomLayer(layers.Layer):
     self.M = tf.Variable(initial_value=M_init(shape=(input_dim, units),dtype='float32'),trainable=True,name = "M")
 
   def call(self, inputs):
+    #print(self.M[1])
+    #print("Inputs :",inputs)
     res = tf.matmul(inputs, self.M) 
     #print(res)
     return res

@@ -20,8 +20,9 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 """--------------------------------- Constants -------------------------------"""
 """D:\\Courses\\Chatbot\\dataset\\data\\, D:\\Courses\\Chatbot\\dataset_trimmed\\data\\"""
-DATA_DIRECTORY_PATH = 'D:\\Courses\\Chatbot\\dataset_trimmed\\data\\'
-OUTPUT_PATH = 'D:\\Courses\\Chatbot\\output'
+DIRNAME_ABSOLUTE = os.path.dirname(__file__)
+DATA_DIRECTORY_PATH = os.path.join(DIRNAME_ABSOLUTE, 'dataset/data')
+OUTPUT_PATH = os.path.join(DIRNAME_ABSOLUTE, 'output')
 VOCAB_SIZE = 10000
 EMBEDDING_DIMENSION = 128
 MAX_LENGTH_OF_SENTENCE = 160
@@ -35,7 +36,7 @@ def read_train_data(data_path):
     context_train = []
     utterance_train = []
     labels = []
-    with open(os.path.join(data_path,'train_100.csv'),encoding='utf8') as csv_file:
+    with open(os.path.join(data_path,'train.csv'),encoding='utf8') as csv_file:
         reader = csv.reader(csv_file)
         next(reader)
         for row in reader:
@@ -138,14 +139,14 @@ def read_train_TFRecords(serialized_example):
     label = example['Label']
     return context,utterance,label
 
-context_col,utterrance_col,label_col = read_train_data(DATA_DIRECTORY_PATH)
-tokenizer = extract_and_store_vocabulary(VOCAB_SIZE,OOV_TOKEN,context_col,utterrance_col)
-context_padded,utterance_padded = map_text_to_integers_and_pad_train(tokenizer,context_col,utterrance_col)
-labels = np.array(label_col)
+#context_col,utterrance_col,label_col = read_train_data(DATA_DIRECTORY_PATH)
+#tokenizer = extract_and_store_vocabulary(VOCAB_SIZE,OOV_TOKEN,context_col,utterrance_col)
+#context_padded,utterance_padded = map_text_to_integers_and_pad_train(tokenizer,context_col,utterrance_col)
+#labels = np.array(label_col)
 
-dataset = tf.data.Dataset.from_tensor_slices((context_padded,utterance_padded,labels))
+#dataset = tf.data.Dataset.from_tensor_slices((context_padded,utterance_padded,labels))
 
-create_train_TFRecords(dataset,OUTPUT_PATH)
+#create_train_TFRecords(dataset,OUTPUT_PATH)
 
 #tfrecord_dataset = tf.data.TFRecordDataset(os.path.join(OUTPUT_PATH,"train.tfrecords"))
 #parsed_dataset = tfrecord_dataset.map(read_train_TFRecords)
