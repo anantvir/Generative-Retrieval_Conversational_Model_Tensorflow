@@ -11,13 +11,14 @@ import json
 from preprocessing import read_train_TFRecords
 from custom_layer import CustomLayer
 import pickle
+import custom_layer
 
 
 """-------------------------------------- Constants ------------------------------------------"""
 DIRNAME_ABSOLUTE = os.path.dirname(__file__)
 GLOVE_EMBEDDING_PATH = os.path.join(DIRNAME_ABSOLUTE, 'glove')
 OUTPUT_PATH = os.path.join(DIRNAME_ABSOLUTE, 'output')
-MAX_SENTENCE_LENGTH = 160
+MAX_SENTENCE_LENGTH = 50
 MAX_NB_WORDS = 10000
 EMBEDDING_DIM = 50
 BATCH_SIZE = 1
@@ -65,11 +66,12 @@ for word,index in word_index.items():
 print("Building Dual Encoder LSTM ...")
 
 embedder = Sequential()
-embedder.add(Embedding(input_dim = num_words,output_dim = EMBEDDING_DIM,input_length = MAX_SENTENCE_LENGTH,embeddings_initializer = tf.keras.initializers.Constant(EMBEDDING_MATRIX)))
+embedder.add(Embedding(input_dim = num_words,output_dim = EMBEDDING_DIM,input_length = MAX_SENTENCE_LENGTH))
+#embeddings_initializer = tf.keras.initializers.Constant(EMBEDDING_MATRIX))
 
 encoder = Sequential()
 encoder.add(Embedding(input_dim = num_words,output_dim = EMBEDDING_DIM,input_length = MAX_SENTENCE_LENGTH,embeddings_initializer = tf.keras.initializers.Constant(EMBEDDING_MATRIX)))
-encoder.add(LSTM(units = 256))
+encoder.add(LSTM(units = 256,recurrent_activation='sigmoid'))
 
 # Create tensors for Context and Utterance
 context_input = Input(shape=(MAX_SENTENCE_LENGTH,),dtype='float32')
@@ -83,6 +85,9 @@ encoded_utterance = encoder(utterance_input)        # Actual response encoding (
 custom_layer = CustomLayer(256,256)
 generated_response = custom_layer(encoded_context)
 
+# M = tf.eye(256)
+# generated_response = tf.matmul(encoded_context,M)
+
 projection = tf.linalg.matmul(generated_response,tf.transpose(encoded_utterance))
 probability = tf.math.sigmoid(projection)
 
@@ -93,60 +98,46 @@ plot_model(dual_encoder, os.path.join(OUTPUT_PATH,'dual_encoder.png'),show_shape
 
 
 #dual_encoder.compile(loss = 'binary_crossentropy', optimizer = 'rmsprop',metrics=['accuracy'])
-# print("Summary of Dual Encoder LSTM :",dual_encoder.summary())
-# def create_batched_dataset(data_path):
-# 	tfrecord_dataset = tf.data.TFRecordDataset(os.path.join(data_path,"train.tfrecords"))
-# 	parsed_dataset = tfrecord_dataset.map(read_train_TFRecords,num_parallel_calls = 8)
-# 	parsed_dataset = parsed_dataset.repeat()
-# 	parsed_dataset = parsed_dataset.shuffle(SHUFFLE_BUFFER)
-# 	parsed_dataset = parsed_dataset.batch(BATCH_SIZE)
-# 	return parsed_dataset
+print("Summary of Dual Encoder LSTM :",dual_encoder.summary())
 
-#parsed_dataset = create_batched_dataset(OUTPUT_PATH)
+def create_batched_dataset(data_path):
+	tfrecord_dataset = tf.data.TFRecordDataset(os.path.join(data_path,"train.tfrecords"))
+	parsed_dataset = tfrecord_dataset.map(read_train_TFRecords,num_parallel_calls = 8)
+	parsed_dataset = parsed_dataset.repeat()
+	parsed_dataset = parsed_dataset.shuffle(SHUFFLE_BUFFER)
+	parsed_dataset = parsed_dataset.batch(BATCH_SIZE)
+	return parsed_dataset
+
+parsed_dataset = create_batched_dataset(OUTPUT_PATH)
 
 # reference - https://www.tensorflow.org/guide/keras/train_and_evaluate
-optimizer = RMSprop(learning_rate=0.001, rho=0.9, momentum=0.1, epsilon=1e-07, centered=False)
+optimizer = RMSprop(learning_rate=0.01, rho=0.9, momentum=0.0, epsilon=1e-07, centered=False)
 
-input_dir = 'D:\\Courses\\Chatbot\\blog\\'
-train_c, train_r, train_l = pickle.load(open(input_dir + 'outputtrain.pkl', 'rb'))
-test_c, test_r, test_l = pickle.load(open(input_dir + 'outputtest.pkl', 'rb'))
-dev_c, dev_r, dev_l = pickle.load(open(input_dir + 'outputdev.pkl', 'rb'))
-train_l = np.asarray(train_l)
-test_l = np.asarray(test_l)
-dev_l = np.asarray(dev_l)
-print('Found %s training samples.' % len(train_c))
-print('Found %s dev samples.' % len(dev_c))
-print('Found %s test samples.' % len(test_c))
-
-print("Now training the model...")
 
 epochs = 10
 for epoch in range(epochs):
 	print('Start of epoch %d' % (epoch,))
 
   # Iterate over the batches of the dataset.
-	for step,row in enumerate(zip(train_c,train_r,train_l)):
+	for step,row in enumerate(parsed_dataset):
 		input_batch_context,input_batch_utterance,input_batch_label = row
-		input_batch_context = np.reshape(input_batch_context,((BATCH_SIZE,160)))
-		input_batch_utterance = np.reshape(input_batch_utterance,(BATCH_SIZE,160))
 		#print("Context :",input_batch_context)
 		with tf.GradientTape() as tape:
-
-			# Run the forward pass of the layer. The operations that the layer applies to its inputs are going to be recorded on the GradientTape.
+			
 			#emb = embedder(input_batch_context)
-			#print(emb)
-			#encoded_context = encoder(input_batch_context)
-			#print(encoded_context)
+			#print("Embedding layer output :",emb)
+			# Run the forward pass of the layer. The operations that the layer applies to its inputs are going to be recorded on the GradientTape.
+
 			pred = dual_encoder([input_batch_context,input_batch_utterance],training = True)
-			#print("Prediction :",pred)
-			#print("Label :",input_batch_label)
-			# Compute the loss value for this minibatch.
+			print("Prediction :",pred)
+			print("Label :",input_batch_label)
+			
 			loss_value = binary_crossentropy(input_batch_label, pred)
-			#print("Loss :",loss_value)
+			print("Loss :",loss_value)
 
 		# Use the gradient tape to automatically retrieve the gradients of the trainable variables with respect to the loss.
 		grads = tape.gradient(loss_value, dual_encoder.trainable_weights)
-		#print(grads)
+		print("Gradients :",grads)
 		# Run one step of gradient descent by updating the value of the variables to minimize the loss.
 		optimizer.apply_gradients(zip(grads, dual_encoder.trainable_weights))
 
