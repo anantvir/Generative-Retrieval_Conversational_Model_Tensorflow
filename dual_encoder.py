@@ -1,3 +1,9 @@
+"""
+Motivations for this project:
+1) https://basmaboussaha.wordpress.com/2017/10/18/implementation-of-dual-encoder-using-keras/comment-page-1/?unapproved=229&moderation-hash=f6485213fcee44e23ad52e4c5c231424#comment-229
+2) A great blog post by Denny Britz using Estimator API --> http://www.wildml.com/2016/04/deep-learning-for-chatbots-part-1-introduction/
+"""
+
 import tensorflow as tf
 from tensorflow.keras import layers, Sequential,Input,Model
 from tensorflow.keras.utils import plot_model
